@@ -28,6 +28,7 @@ uint16_t kColorAircraft = 0x001F;
 uint16_t kColorTrackVector = 0xFFFF;
 uint16_t kColorTagType = 0x5DFF;
 uint16_t kColorTagAltitude = 0xFFE0;
+uint16_t kColorTagRoute = 0x07E0;
 uint16_t kColorRunway = 0x4D5F;
 uint16_t kColorRunwayLabel = 0x7DFF;
 
@@ -193,6 +194,8 @@ void initPalette() {
       tft.color565(radar::kTagTypeR, radar::kTagTypeG, radar::kTagTypeB);
   radar::kColorTagAltitude =
       tft.color565(radar::kTagAltR, radar::kTagAltG, radar::kTagAltB);
+  radar::kColorTagRoute =
+      tft.color565(radar::kTagRouteR, radar::kTagRouteG, radar::kTagRouteB);
   radar::kColorRunway =
       tft.color565(radar::kRunwayR, radar::kRunwayG, radar::kRunwayB);
   radar::kColorRunwayLabel = tft.color565(radar::kRunwayLabelR, radar::kRunwayLabelG,
@@ -378,7 +381,17 @@ void applyTagStyle() {
   }
 }
 
-int measureTagBlockWidth(const services::adsb::Aircraft& plane) {
+/** "JFK>LAX" style route tag; empty if either end is still unresolved. */
+void formatRouteTag(const services::adsb::Aircraft& plane, char* out, size_t out_len) {
+  out[0] = '\0';
+  if (plane.origin[0] == '\0' || plane.dest[0] == '\0') {
+    return;
+  }
+  snprintf(out, out_len, "%s>%s", plane.origin, plane.dest);
+}
+
+int measureTagBlockWidth(const services::adsb::Aircraft& plane,
+                         const char* route_text) {
   applyTagStyle();
   int max_w = 0;
   if (plane.callsign[0] != '\0') {
@@ -399,6 +412,12 @@ int measureTagBlockWidth(const services::adsb::Aircraft& plane) {
       max_w = w;
     }
   }
+  if (route_text[0] != '\0') {
+    const int w = s_draw->textWidth(route_text);
+    if (w > max_w) {
+      max_w = w;
+    }
+  }
   return max_w;
 }
 
@@ -406,9 +425,12 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   initTagLabelMetrics();
   applyTagStyle();
 
+  char route_text[9];
+  formatRouteTag(plane, route_text, sizeof(route_text));
+
   const int line_h = s_draw->fontHeight();
-  const int block_w = measureTagBlockWidth(plane);
-  const int block_h = line_h * 3;
+  const int block_w = measureTagBlockWidth(plane, route_text);
+  const int block_h = line_h * 4;
   int ly = y - block_h / 2;
 
   const int symbol_half =
@@ -442,6 +464,12 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   if (plane.alt[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagAltitude, radar::kColorBackground);
     s_draw->drawString(plane.alt, anchor_x, ly);
+  }
+  ly += line_h;
+
+  if (route_text[0] != '\0') {
+    s_draw->setTextColor(radar::kColorTagRoute, radar::kColorBackground);
+    s_draw->drawString(route_text, anchor_x, ly);
   }
 }
 

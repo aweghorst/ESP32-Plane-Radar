@@ -13,6 +13,9 @@ struct Aircraft {
   char callsign[9];
   char type[5];
   char alt[12];
+  /** Route, e.g. "JFK" / "LAX". Empty until resolved (see adsdb.fi lookup). */
+  char origin[4];
+  char dest[4];
 };
 
 constexpr size_t kMaxAircraft = 64;
