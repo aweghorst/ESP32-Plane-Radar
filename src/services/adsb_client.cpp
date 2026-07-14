@@ -360,7 +360,9 @@ size_t aircraftCount() { return s_aircraft_count; }
 const Aircraft* aircraftList() { return s_aircraft; }
 
 bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
+  Serial.printf("heap free: %u bytes\n", ESP.getFreeHeap());
   const float dist_nm = kmToNauticalMiles(fetch_radius_km);
+  ...
 
   String url = kApiBase;
   url += String(center_lat, 6);
