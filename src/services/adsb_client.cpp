@@ -362,7 +362,6 @@ const Aircraft* aircraftList() { return s_aircraft; }
 bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
   Serial.printf("heap free: %u bytes\n", ESP.getFreeHeap());
   const float dist_nm = kmToNauticalMiles(fetch_radius_km);
-  ...
 
   String url = kApiBase;
   url += String(center_lat, 6);
@@ -371,30 +370,35 @@ bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
   url += "/dist/";
   url += String(dist_nm, 1);
 
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  if (!http.begin(client, url)) {
-    Serial.println("adsb: http.begin failed");
-    return false;
-  }
-
-  http.setTimeout(kRequestTimeoutMs);
-  const int code = performGetWithPoll(http);
-  if (code != HTTP_CODE_OK) {
-    Serial.printf("adsb: HTTP %d\n", code);
-    http.end();
-    return false;
-  }
-
   String payload;
-  if (!readResponseBodyWithPoll(http, payload)) {
-    Serial.println("adsb: empty response");
+  {
+    // Scoped so this TLS session (and its ~30-40KB of buffers) is freed
+    // before any route lookup below opens a second HTTPS connection —
+    // the ESP32-C3 doesn't have room for two live TLS sessions at once.
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient http;
+    if (!http.begin(client, url)) {
+      Serial.println("adsb: http.begin failed");
+      return false;
+    }
+
+    http.setTimeout(kRequestTimeoutMs);
+    const int code = performGetWithPoll(http);
+    if (code != HTTP_CODE_OK) {
+      Serial.printf("adsb: HTTP %d\n", code);
+      http.end();
+      return false;
+    }
+
+    if (!readResponseBodyWithPoll(http, payload)) {
+      Serial.println("adsb: empty response");
+      http.end();
+      return false;
+    }
     http.end();
-    return false;
   }
-  http.end();
 
   JsonDocument doc;
   const DeserializationError err = deserializeJson(doc, payload);
